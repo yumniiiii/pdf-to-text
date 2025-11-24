@@ -14,15 +14,14 @@ def create_toc_page(entries):
     c = canvas.Canvas(buffer, pagesize=A4)
     width, height = A4
 
-    # 제목 스타일링: 큰 글씨, 파란색
+    # 제목 스타일링
     c.setFont("Helvetica-Bold", 20)
-    c.setFillColor(HexColor("#1F4E79"))  # 파란색
+    c.setFillColor(HexColor("#1F4E79"))
     c.drawString(72, height - 72, "목차 (Table of Contents)")
 
-    # 목차 항목 스타일링: 13pt, 회색
+    # 목차 항목 스타일링
     c.setFont("Helvetica", 13)
     c.setFillColor(HexColor("#333333"))
-
     y = height - 110
     link_positions = []
 
@@ -30,10 +29,10 @@ def create_toc_page(entries):
         line = f"{i}. {entry['title']} ...... p. {entry['start_page']}"
         c.drawString(80, y, line)
         link_positions.append(y)
-        y -= 22  # 줄 간격 확대
+        y -= 22  # 줄 간격
         if y < 72:
             c.showPage()
-            y = height - 72  # 다음 페이지 시작점
+            y = height - 72
 
     c.showPage()
     c.save()
@@ -41,7 +40,7 @@ def create_toc_page(entries):
     return buffer.getvalue(), link_positions, width
 
 # ---------------------------
-# PDF 병합 함수
+# PDF 병합 + 미리보기
 # ---------------------------
 def merge_pdfs_with_toc(uploaded_files, custom_titles):
     pdf_infos = []
@@ -55,7 +54,7 @@ def merge_pdfs_with_toc(uploaded_files, custom_titles):
             "custom_title": custom_titles.get(uf.name, uf.name)
         })
 
-    # 시작 페이지 계산 (TOC = 1페이지)
+    # 시작 페이지 계산
     entries = []
     current_page = 1
     for info in pdf_infos:
@@ -93,23 +92,7 @@ def merge_pdfs_with_toc(uploaded_files, custom_titles):
         annotation = Link(rect=rect, target_page_index=target_page_index)
         writer.add_annotation(page_number=0, annotation=annotation)
 
-    # ---------------------------
-    # 병합된 PDF 모든 페이지에 페이지 번호 추가
-    # ---------------------------
-    for i, page in enumerate(writer.pages):
-        packet = BytesIO()
-        c = canvas.Canvas(packet, pagesize=A4)
-        width, height = A4
-        c.setFont("Helvetica", 10)
-        c.setFillColor(HexColor("#555555"))
-        c.drawRightString(width - 72, 20, f"- {i + 1} -")
-        c.save()
-        packet.seek(0)
-
-        # 기존 페이지 위에 덮어쓰기
-        number_pdf = PdfReader(packet)
-        page.merge_page(number_pdf.pages[0])
-
+    # 결과를 BytesIO 반환
     output_buffer = BytesIO()
     writer.write(output_buffer)
     output_buffer.seek(0)
@@ -119,8 +102,14 @@ def merge_pdfs_with_toc(uploaded_files, custom_titles):
 # Streamlit UI
 # ---------------------------
 def main():
-    st.title("PDF 병합 + 클릭 가능한 목차 + 페이지 번호")
-    st.write("여러 PDF를 업로드하면 하나로 병합하고, 목차와 페이지 번호를 자동 생성합니다.")
+    st.set_page_config(
+        page_title="Styled PDF Merger",
+        page_icon="📄",
+        layout="centered"
+    )
+    
+    st.title("Styled PDF Merger")
+    st.write("여러 PDF를 병합하고 클릭 가능한 스타일 목차를 생성하며, 업로드한 PDF를 미리 볼 수 있습니다.")
 
     uploaded_files = st.file_uploader(
         "PDF 파일을 여러 개 선택하세요.",
@@ -140,13 +129,25 @@ def main():
             title = st.text_input(f"{uf.name}의 목차 제목", value=uf.name)
             custom_titles[uf.name] = title
 
+        # PDF 미리보기
+        st.write("업로드된 PDF 미리보기:")
+        for uf in uploaded_files:
+            st.write(f"**{uf.name}**")
+            st.download_button(
+                label="다운로드 미리보기 PDF",
+                data=uf.read(),
+                file_name=uf.name,
+                mime="application/pdf"
+            )
+            uf.seek(0)  # 다시 읽기 위해 파일 포인터 초기화
+
         if st.button("병합 PDF 생성"):
             merged_pdf = merge_pdfs_with_toc(uploaded_files, custom_titles)
-            st.success("병합 완료! 목차 클릭과 페이지 번호가 추가되었습니다.")
+            st.success("병합 완료! 목차 클릭과 스타일링이 적용되었습니다.")
             st.download_button(
                 label="병합된 PDF 다운로드",
                 data=merged_pdf,
-                file_name="merged_with_toc_and_page_numbers.pdf",
+                file_name="merged_styled_toc.pdf",
                 mime="application/pdf",
             )
 
